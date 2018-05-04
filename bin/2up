@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+margin=20
+paper=letter
+
+function gsbbox {
+  gs -sDEVICE=bbox -dNOPAUSE -dBATCH $1 2>&1 | grep "%%BoundingBox" | cut -d' ' -f 2-5
+}
+
+function filter {
+  pdfjam $1 $2 > /dev/null 2>&1
+}
+
+function crop {
+  if [[ -z $2 ]]
+  then
+    pdfcrop $1 --margins $margin > /dev/null
+  else
+    pdfcrop $1 --margins $margin --bbox "$2" > /dev/null
+  fi
+
+}
+
+function join {
+  pdfjoin $@ --rotateoversize false --paper $paper > /dev/null 2>&1
+}
+
+function nup {
+  pdfnup $1 --paper $paper > /dev/null 2>&1
+}
+
+function split {
+  for slice in ${@:2}
+  do
+    filter $1 $slice
+  done
+}
+
+function bbox {
+  filter $1 $2
+  gsbbox ${1/.pdf/-$2-pdfjam.pdf}
+}
+
+function simple_compose {
+  local in=$1
+  crop $in
+  nup *-crop.pdf
+}
+
+function complex_compose {
+  local in=$1
+  local slices=$2
+  local outliers=$3
+  local keypage=$4
+  local box=$(bbox $in $keypage)
+
+  split $in $slices
+  for slice in $slices
+  do
+    case $outliers in
+    *"$slice"*)
+      crop ${in/.pdf/-$slice-pdfjam.pdf} "$box"
+      ;;
+    *)
+      crop ${in/.pdf/-$slice-pdfjam.pdf}
+      ;;
+    esac
+  done
+  join *-crop.pdf
+  nup *-joined.pdf
+}
+
+function cleanup {
+  rm -rf $dir
+}
+
+dir=$(mktemp -d)
+trap cleanup EXIT
+cp $1 $dir
+pushd $dir > /dev/null
+
+# TODO compute slices, outliers, key pages automatically
+# complex_compose $(basename $1) "1-1 2-" "1-1" "2"
+
+simple_compose $(basename $1)
+
+popd > /dev/null
+cp $dir/*-nup.pdf $(basename ${1/.pdf/.2up.pdf})
