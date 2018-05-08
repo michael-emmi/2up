@@ -82,7 +82,7 @@ function main {
 
   trap "cleanup $dir" EXIT
 
-  cp $1 $dir
+  cp $in $dir
   pushd $dir > /dev/null
 
   # TODO compute slices, outliers, key pages automatically
