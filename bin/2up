@@ -4,65 +4,78 @@ margin=20
 paper=letter
 
 function gsbbox {
-  gs -sDEVICE=bbox -dNOPAUSE -dBATCH $1 2>&1 | grep "%%BoundingBox" | cut -d' ' -f 2-5
+  local file=$1
+  gs -sDEVICE=bbox -dNOPAUSE -dBATCH $file 2>&1 | grep "%%BoundingBox" | cut -d' ' -f 2-5
 }
 
 function filter {
-  pdfjam $1 $2 > /dev/null 2>&1
+  local file=$1
+  local selection=$2
+  pdfjam $file $selection > /dev/null 2>&1
 }
 
 function crop {
-  if [[ -z $2 ]]
+  local file=$1
+  local bbox=$2
+
+  if [[ -z $bbox ]]
   then
-    pdfcrop $1 --margins $margin > /dev/null
+    pdfcrop $file --margins $margin > /dev/null
   else
-    pdfcrop $1 --margins $margin --bbox "$2" > /dev/null
+    pdfcrop $file --margins $margin --bbox "$bbox" > /dev/null
   fi
 
 }
 
 function join {
-  pdfjoin $@ --rotateoversize false --paper $paper > /dev/null 2>&1
+  local args=$@
+  pdfjoin $args --rotateoversize false --paper $paper > /dev/null 2>&1
 }
 
 function nup {
-  pdfnup $1 --paper $paper > /dev/null 2>&1
+  local file=$1
+  pdfnup $file --paper $paper > /dev/null 2>&1
 }
 
 function split {
-  for slice in ${@:2}
+  local file=$1
+  local selections=${@:2}
+
+  for selection in $selections
   do
-    filter $1 $slice
+    filter $file $selection
   done
 }
 
 function bbox {
-  filter $1 $2
-  gsbbox ${1/.pdf/-$2-pdfjam.pdf}
+  local file=$1
+  local selection=$2
+  filter $file $selection
+  gsbbox ${file/.pdf/-$selection-pdfjam.pdf}
 }
 
 function simple_compose {
-  local in=$1
-  crop $in
+  local file=$1
+  crop $file
   nup *-crop.pdf
 }
 
 function complex_compose {
-  local in=$1
-  local slices=$2
+  local file=$1
+  local selections=$2
   local outliers=$3
   local keypage=$4
   local box=$(bbox $in $keypage)
 
-  split $in $slices
-  for slice in $slices
+  split $file $selections
+  for selection in $selections
   do
     case $outliers in
-    *"$slice"*)
-      crop ${in/.pdf/-$slice-pdfjam.pdf} "$box"
+    *"$selection"*)
+      crop ${file/.pdf/-$selection-pdfjam.pdf} "$box"
       ;;
     *)
-      crop ${in/.pdf/-$slice-pdfjam.pdf}
+      crop ${file/.pdf/-$selection-pdfjam.pdf}
       ;;
     esac
   done
@@ -73,7 +86,7 @@ function complex_compose {
 function compose {
   local file=$1
 
-  # TODO compute slices, outliers, key pages automatically
+  # TODO compute selections, outliers, key pages automatically
   # complex_compose $(basename $file) "1-1 2-" "1-1" "2"
 
   simple_compose $file
