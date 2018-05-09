@@ -62,6 +62,102 @@ function bbox {
   gsbbox $(filter $file $selection)
 }
 
+function quartiles {
+  local numbers="$1"
+  local n=$(echo "$numbers" | wc -l)
+  echo "$numbers" | sort | sed -n "$((n/4))p; $((n/2))p; $((n/4*3))p"
+}
+
+function range {
+  local numbers="$1"
+  local threshold=5
+  local q1
+  local q2
+  local q3
+  read -r q1 q2 q3 <<< $(quartiles "$numbers")
+  local diff=$((q3-q1))
+  diff=$((diff > threshold ? diff : threshold))
+  local bound=$((diff*3))
+  echo "$((q2-bound)) $((q2+bound))"
+}
+
+function outliers {
+  local numbers="$1"
+  local min
+  local max
+  local indices=""
+  local index=1
+  read -r min max <<< $(range "$numbers")
+  for n in $numbers
+  do
+    if (( n < min || n > max ))
+    then
+      indices+="$index\n"
+    fi
+    ((++index))
+  done
+  echo -e $indices
+}
+
+function boxes {
+  local file=$1
+  gsbbox $file
+}
+
+function outlier_boxes {
+  local boxes=$1
+  local indices=""
+
+  for col in $(seq 1 4)
+  do
+    indices+="$(outliers "$(echo "$boxes" | cut -f $col -d ' ')")\n"
+  done
+
+  echo $(echo -e "$indices" | sort -g | uniq)
+}
+
+function get_selections {
+  local bound=$1
+  local outliers=$2
+  local selections=""
+  local flags=" -v"
+  local polarity="0"
+  local head="1"
+  for index in $(seq 1 $bound)
+  do
+    if grep -q $(cut -f $((polarity+1)) -d ' ' <<< "$flags") "\b$index\b" <<< "$outliers"
+    then
+      if ((index == 1))
+      then
+        :
+      elif ((head == index-1))
+      then
+        selections+=" $head "
+      else
+        selections+=" $head-$((index-1))"
+      fi
+      polarity=$(((polarity+1) % 2))
+      head=$index
+    fi
+  done
+  selections+=" $head-"
+  echo $selections | xargs
+}
+
+function get_keypage {
+  local bound=$1
+  local excluded=$2
+
+  for index in $(seq 1 $bound)
+  do
+    if grep -q -v "\b$index\b" <<< "$excluded"
+    then
+      echo $index
+      break
+    fi
+  done
+}
+
 function simple_compose {
   local file=$1
   nup $(crop $file)
@@ -69,36 +165,43 @@ function simple_compose {
 
 function complex_compose {
   local file=$1
-  local selections=$2
-  local outliers=$3
-  local keypage=$4
+
+  echo "computing bounding boxes" >&2
+  local boxes=$(boxes $file)
+  local pages=$(wc -l <<< "$boxes" | xargs)
+  echo "composing $pages pages" >&2
+
+  local outliers=$(outlier_boxes "$boxes")
+  echo "outliers: $outliers" >&2
+
+  local keypage=$(get_keypage $pages "$outliers")
+  echo "keypage: $keypage" >&2
+
+  local selections=$(get_selections $pages "$outliers")
+  echo "selections: $selections" >&2
+
   local box=$(bbox $in $keypage)
+  echo "bounding box: $box" >&2
+
+  echo "splitting selections" >&2
   local splits=$(split $file $selections)
   local cropped=""
-  local idx=1
 
-  for selection in $selections
+  echo "cropping selections" >&2
+  for split in $splits
   do
-    case $outliers in
-    *"$selection"*)
-      cropped+=" $(crop $(echo $splits | cut -f $idx  -d ' ') "$box")"
-      ;;
-    *)
-      cropped+=" $(crop $(echo $splits | cut  -f $idx -d ' '))"
-      ;;
-    esac
-    ((idx = idx + 1))
+    cropped+=" $(crop "$split" "$box")"
   done
+
+  echo "composing cropped selections" >&2
   nup $(join $cropped)
 }
 
 function compose {
   local file=$1
 
-  # TODO compute selections, outliers, key pages automatically
-  # complex_compose $(basename $file) "1-1 2-" "1-1" "2"
-
-  simple_compose $file
+  # simple_compose $file
+  complex_compose $(basename $file)
 }
 
 function main {
