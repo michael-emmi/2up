@@ -28,8 +28,8 @@ function crop {
 }
 
 function join {
-  local args=$@
-  pdfjoin $args --rotateoversize false --paper $paper > /dev/null 2>&1
+  local files=$@
+  pdfjoin $files --rotateoversize false --paper $paper > /dev/null 2>&1
 }
 
 function nup {
