@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
 margin=20
+resolution=72
 paper=letter
 
 function gsbbox {
   local file=$1
-  gs -sDEVICE=bbox -dNOPAUSE -dBATCH $file 2>&1 | grep "%%BoundingBox" | cut -d' ' -f 2-5
+  gs -sDEVICE=bbox -r$resolution -dNOPAUSE -dBATCH $file 2>&1 | grep "%%BoundingBox" | cut -d' ' -f 2-5
 }
 
 function filter {
@@ -23,9 +24,9 @@ function crop {
 
   if [[ -z $bbox ]]
   then
-    pdfcrop $file --margins $margin $outfile > /dev/null
+    pdfcrop $file --resolution $resolution --margins $margin $outfile > /dev/null
   else
-    pdfcrop $file --margins $margin --bbox "$bbox" $outfile > /dev/null
+    pdfcrop $file --resolution $resolution --margins $margin --bbox "$bbox" $outfile > /dev/null
   fi
   echo $outfile
 }
