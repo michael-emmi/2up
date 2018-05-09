@@ -70,6 +70,15 @@ function complex_compose {
   nup *-joined.pdf
 }
 
+function compose {
+  local file=$1
+
+  # TODO compute slices, outliers, key pages automatically
+  # complex_compose $(basename $file) "1-1 2-" "1-1" "2"
+
+  simple_compose $file
+}
+
 function cleanup {
   local dir=$1
   rm -rf $dir
@@ -81,17 +90,12 @@ function main {
   local dir=$(mktemp -d)
 
   trap "cleanup $dir" EXIT
-
   cp $in $dir
   pushd $dir > /dev/null
-
-  # TODO compute slices, outliers, key pages automatically
-  # complex_compose $(basename $1) "1-1 2-" "1-1" "2"
-
-  simple_compose $file
-
+  compose $file
   popd > /dev/null
   cp $dir/*-nup.pdf ${file/.pdf/.2up.pdf}
 }
 
+set -e
 main $@
