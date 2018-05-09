@@ -79,17 +79,12 @@ function compose {
   simple_compose $file
 }
 
-function cleanup {
-  local dir=$1
-  rm -rf $dir
-}
-
 function main {
   local in=$1
   local file=$(basename $in)
   local dir=$(mktemp -d)
 
-  trap "cleanup $dir" EXIT
+  trap "rm -rf $dir" EXIT
   cp $in $dir
   pushd $dir > /dev/null
   compose $file
