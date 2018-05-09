@@ -11,53 +11,60 @@ function gsbbox {
 function filter {
   local file=$1
   local selection=$2
-  pdfjam $file $selection > /dev/null 2>&1
+  local outfile=${file/.pdf/.$selection.pdf}
+  pdfjam -o $outfile $file $selection > /dev/null 2>&1
+  echo $outfile
 }
 
 function crop {
   local file=$1
   local bbox=$2
+  local outfile=${1/.pdf/.cropped.pdf}
 
   if [[ -z $bbox ]]
   then
-    pdfcrop $file --margins $margin > /dev/null
+    pdfcrop $file --margins $margin $outfile > /dev/null
   else
-    pdfcrop $file --margins $margin --bbox "$bbox" > /dev/null
+    pdfcrop $file --margins $margin --bbox "$bbox" $outfile > /dev/null
   fi
-
+  echo $outfile
 }
 
 function join {
   local files=$@
-  pdfjoin $files --rotateoversize false --paper $paper > /dev/null 2>&1
+  local outfile=${1/.pdf/.joined.pdf}
+  pdfjoin -o $outfile $files --rotateoversize false --paper $paper > /dev/null 2>&1
+  echo $outfile
 }
 
 function nup {
   local file=$1
-  pdfnup $file --paper $paper > /dev/null 2>&1
+  local outfile=${file/.pdf/.nup.pdf}
+  pdfnup -o $outfile $file --paper $paper > /dev/null 2>&1
+  echo $outfile
 }
 
 function split {
   local file=$1
   local selections=${@:2}
+  local outfiles=""
 
   for selection in $selections
   do
-    filter $file $selection
+    outfiles+=" $(filter $file $selection)"
   done
+  echo $outfiles
 }
 
 function bbox {
   local file=$1
   local selection=$2
-  filter $file $selection
-  gsbbox ${file/.pdf/-$selection-pdfjam.pdf}
+  gsbbox $(filter $file $selection)
 }
 
 function simple_compose {
   local file=$1
-  crop $file
-  nup *-crop.pdf
+  nup $(crop $file)
 }
 
 function complex_compose {
@@ -66,21 +73,23 @@ function complex_compose {
   local outliers=$3
   local keypage=$4
   local box=$(bbox $in $keypage)
+  local splits=$(split $file $selections)
+  local cropped=""
+  local idx=1
 
-  split $file $selections
   for selection in $selections
   do
     case $outliers in
     *"$selection"*)
-      crop ${file/.pdf/-$selection-pdfjam.pdf} "$box"
+      cropped+=" $(crop $(echo $splits | cut -f $idx  -d ' ') "$box")"
       ;;
     *)
-      crop ${file/.pdf/-$selection-pdfjam.pdf}
+      cropped+=" $(crop $(echo $splits | cut  -f $idx -d ' '))"
       ;;
     esac
+    ((idx = idx + 1))
   done
-  join *-crop.pdf
-  nup *-joined.pdf
+  nup $(join $cropped)
 }
 
 function compose {
@@ -100,9 +109,9 @@ function main {
   trap "rm -rf $dir" EXIT
   cp $in $dir
   pushd $dir > /dev/null
-  compose $file
+  local composed=$(compose $file)
   popd > /dev/null
-  cp $dir/*-nup.pdf ${file/.pdf/.2up.pdf}
+  cp $dir/$composed ${file/.pdf/.2up.pdf}
 }
 
 set -e
