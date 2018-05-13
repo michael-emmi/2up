@@ -178,11 +178,15 @@ function complex_compose {
   local keypage=$(get_keypage $pages "$outliers")
   echo "keypage: $keypage" >&2
 
-  local selections=$(get_selections $pages "$outliers")
-  echo "selections: $selections" >&2
-
   local box=$(bbox $in $keypage)
   echo "bounding box: $box" >&2
+
+  ## XXX in case of per-selection handling
+  #
+  # local selections=$(get_selections $pages "$outliers")
+
+  local selections="1-"
+  echo "selections: $selections" >&2
 
   echo "splitting selections" >&2
   local splits=$(split $file $selections)
@@ -195,7 +199,7 @@ function complex_compose {
   done
 
   echo "composing cropped selections" >&2
-  nup $(join $cropped)
+  nup $cropped
 }
 
 function compose {
