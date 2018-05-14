@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-margin=20
+margin=25
 resolution=72
 paper=letter
 
