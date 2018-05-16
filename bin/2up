@@ -5,62 +5,62 @@ resolution=72
 paper=letter
 
 function gsbbox {
-  local file=$1
-  gs -sDEVICE=bbox -r$resolution -dNOPAUSE -dBATCH $file 2>&1 | grep "%%BoundingBox" | cut -d' ' -f 2-5
+  local file="$1"
+  gs -sDEVICE=bbox -r$resolution -dNOPAUSE -dBATCH "$file" 2>&1 | grep "%%BoundingBox" | cut -d' ' -f 2-5
 }
 
 function filter {
-  local file=$1
+  local file="$1"
   local selection=$2
-  local outfile=${file/.pdf/.$selection.pdf}
-  pdfjam -o $outfile $file $selection > /dev/null 2>&1
+  local outfile="${file/.pdf/.$selection.pdf}"
+  pdfjam -o "$outfile" "$file" $selection > /dev/null 2>&1
   echo $outfile
 }
 
 function crop {
-  local file=$1
-  local bbox=$2
-  local outfile=${1/.pdf/.cropped.pdf}
+  local file="$1"
+  local bbox="$2"
+  local outfile="${1/.pdf/.cropped.pdf}"
 
-  if [[ -z $bbox ]]
+  if [[ -z "$bbox" ]]
   then
-    pdfcrop $file --resolution $resolution --margins $margin $outfile > /dev/null
+    pdfcrop "$file" --resolution $resolution --margins $margin "$outfile" > /dev/null
   else
-    pdfcrop $file --resolution $resolution --margins $margin --bbox "$bbox" $outfile > /dev/null
+    pdfcrop "$file" --resolution $resolution --margins $margin --bbox "$bbox" "$outfile" > /dev/null
   fi
   echo $outfile
 }
 
 function join {
-  local files=$@
-  local outfile=${1/.pdf/.joined.pdf}
-  pdfjoin -o $outfile $files --rotateoversize false --paper $paper > /dev/null 2>&1
+  local files="$@"
+  local outfile="${1/.pdf/.joined.pdf}"
+  pdfjoin -o "$outfile" "$files" --rotateoversize false --paper $paper > /dev/null 2>&1
   echo $outfile
 }
 
 function nup {
-  local file=$1
-  local outfile=${file/.pdf/.nup.pdf}
-  pdfnup -o $outfile $file --paper $paper > /dev/null 2>&1
+  local file="$1"
+  local outfile="${file/.pdf/.nup.pdf}"
+  pdfnup -o "$outfile" "$file" --paper $paper > /dev/null 2>&1
   echo $outfile
 }
 
 function split {
-  local file=$1
+  local file="$1"
   local selections=${@:2}
   local outfiles=""
 
   for selection in $selections
   do
-    outfiles+=" $(filter $file $selection)"
+    outfiles+=" $(filter "$file" $selection)"
   done
   echo $outfiles
 }
 
 function bbox {
-  local file=$1
+  local file="$1"
   local selection=$2
-  gsbbox $(filter $file $selection)
+  gsbbox "$(filter "$file" $selection)"
 }
 
 function quartiles {
@@ -101,8 +101,8 @@ function outliers {
 }
 
 function boxes {
-  local file=$1
-  gsbbox $file
+  local file="$1"
+  gsbbox "$file"
 }
 
 function outlier_boxes {
@@ -147,7 +147,7 @@ function get_selections {
 
 function get_keypage {
   local bound=$1
-  local excluded=$2
+  local excluded="$2"
 
   for index in $(seq 1 $bound)
   do
@@ -157,18 +157,20 @@ function get_keypage {
       break
     fi
   done
+
+  echo 1
 }
 
 function simple_compose {
-  local file=$1
-  nup $(crop $file)
+  local file="$1"
+  nup $(crop "$file")
 }
 
 function complex_compose {
-  local file=$1
+  local file="$1"
 
   echo "computing bounding boxes" >&2
-  local boxes=$(boxes $file)
+  local boxes=$(boxes "$file")
   local pages=$(wc -l <<< "$boxes" | xargs)
   echo "composing $pages pages" >&2
 
@@ -178,7 +180,7 @@ function complex_compose {
   local keypage=$(get_keypage $pages "$outliers")
   echo "keypage: $keypage" >&2
 
-  local box=$(bbox $in $keypage)
+  local box="$(bbox "$in" $keypage)"
   echo "bounding box: $box" >&2
 
   ## XXX in case of per-selection handling
@@ -189,38 +191,38 @@ function complex_compose {
   echo "selections: $selections" >&2
 
   echo "splitting selections" >&2
-  local splits=$(split $file $selections)
+  local splits="$(split "$file" $selections)"
   local cropped=""
 
   echo "cropping selections" >&2
-  for split in $splits
+  for split in "$splits"
   do
     cropped+=" $(crop "$split" "$box")"
   done
 
   echo "composing cropped selections" >&2
-  nup $cropped
+  nup "$(echo "$cropped" | xargs)"
 }
 
 function compose {
-  local file=$1
+  local file="$1"
 
   # simple_compose $file
-  complex_compose $(basename $file)
+  complex_compose "$(basename "$file")"
 }
 
 function main {
-  local in=$1
-  local file=$(basename $in)
+  local in="$1"
+  local file="$(basename "$in")"
   local dir=$(mktemp -d)
 
   trap "rm -rf $dir" EXIT
-  cp $in $dir
+  cp "$in" $dir
   pushd $dir > /dev/null
-  local composed=$(compose $file)
+  local composed="$(compose "$file")"
   popd > /dev/null
-  cp $dir/$composed ${file/.pdf/.2up.pdf}
+  cp "$dir/$composed" "${file/.pdf/.2up.pdf}"
 }
 
 set -e
-main $@
+main "$@"
